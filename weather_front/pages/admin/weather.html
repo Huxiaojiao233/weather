@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>天气数据管理 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../../css/style.css" rel="stylesheet" />
+    <link href="../../css/admin.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="content-page">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-cloud-sun"></i> 天气数据管理</h2>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div id="weatherDataContainer">
+                <div class="text-center">
+                  <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../../js/utils.js"></script>
+
+    <script>
+      // 检查登录状态
+      async function checkAuth() {
+        try {
+          const response = await adminApi.getDashboard();
+          if (!response || !response.success) {
+            if (window.parent !== window) {
+              window.parent.location.href = "login.html";
+            } else {
+              window.location.href = "login.html";
+            }
+            return false;
+          }
+          return true;
+        } catch (e) {
+          if (window.parent !== window) {
+            window.parent.location.href = "login.html";
+          } else {
+            window.location.href = "login.html";
+          }
+          return false;
+        }
+      }
+
+      // 加载天气数据
+      async function loadWeatherData() {
+        try {
+          const response = await adminApi.getWeatherData();
+          if (response && response.success && response.data) {
+            displayWeatherData(response.data.weatherData || []);
+          } else {
+            showError(
+              document.getElementById("weatherDataContainer"),
+              "加载天气数据失败"
+            );
+          }
+        } catch (error) {
+          console.error("加载天气数据失败:", error);
+          showError(
+            document.getElementById("weatherDataContainer"),
+            "加载天气数据失败"
+          );
+        }
+      }
+
+      // 显示天气数据
+      function displayWeatherData(weatherData) {
+        const container = document.getElementById("weatherDataContainer");
+        if (!weatherData || weatherData.length === 0) {
+          showEmpty(container, "暂无天气数据");
+          return;
+        }
+
+        let html = '<table class="table table-hover">';
+        html +=
+          "<thead><tr><th>地点</th><th>温度(°C)</th><th>湿度(%)</th><th>风速(m/s)</th><th>风向</th><th>天气状况</th><th>更新时间</th></tr></thead>";
+        html += "<tbody>";
+
+        weatherData.forEach((data) => {
+          html += `<tr>
+                    <td>${getCityName(data.locationCode)}</td>
+                    <td>${data.temperature || "-"}</td>
+                    <td>${data.humidity || "-"}</td>
+                    <td>${data.windSpeed || "-"}</td>
+                    <td>${data.windDirection || "-"}</td>
+                    <td>${getWeatherIcon(data.weatherCondition)} ${
+            data.weatherCondition || "-"
+          }</td>
+                    <td>${formatDate(data.updateTime)}</td>
+                </tr>`;
+        });
+
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      }
+
+      // 页面加载
+      (async () => {
+        const isAuth = await checkAuth();
+        if (isAuth) {
+          loadWeatherData();
+        }
+      })();
+    </script>
+  </body>
+</html>

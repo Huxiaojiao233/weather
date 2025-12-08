@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>交通管理 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../../css/style.css" rel="stylesheet" />
+    <link href="../../css/admin.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="content-page">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-airplane"></i> 交通管理</h2>
+        <button
+          class="btn btn-primary"
+          data-bs-toggle="modal"
+          data-bs-target="#addTrafficModal"
+        >
+          <i class="bi bi-plus-circle"></i> 添加交通信息
+        </button>
+      </div>
+
+      <!-- 标签页 -->
+      <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+          <a class="nav-link active" data-bs-toggle="tab" href="#flights"
+            >航班</a
+          >
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-bs-toggle="tab" href="#trains">列车</a>
+        </li>
+      </ul>
+
+      <div class="tab-content">
+        <div class="tab-pane fade show active" id="flights">
+          <div class="card">
+            <div class="card-body">
+              <div id="flightsContainer">
+                <div class="text-center">
+                  <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-pane fade" id="trains">
+          <div class="card">
+            <div class="card-body">
+              <div id="trainsContainer">
+                <div class="text-center">
+                  <div class="spinner-border" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加/编辑交通信息模态框 -->
+    <div class="modal fade" id="addTrafficModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">添加交通信息</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="trafficForm">
+              <input type="hidden" id="trafficId" />
+              <div class="mb-3">
+                <label class="form-label">类型</label>
+                <select class="form-select" id="trafficType" required>
+                  <option value="FLIGHT">航班</option>
+                  <option value="TRAIN">列车</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">航班/车次号</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="trafficNumber"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">出发城市</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="departureCity"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">到达城市</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="arrivalCity"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">计划时间</label>
+                <input
+                  type="datetime-local"
+                  class="form-control"
+                  id="scheduledTime"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">预计时间</label>
+                <input
+                  type="datetime-local"
+                  class="form-control"
+                  id="estimatedTime"
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">状态</label>
+                <select class="form-select" id="trafficStatus" required>
+                  <option value="NORMAL">正常</option>
+                  <option value="DELAYED">延误</option>
+                  <option value="CANCELLED">取消</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">延误原因</label>
+                <textarea
+                  class="form-control"
+                  id="delayReason"
+                  rows="2"
+                ></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              取消
+            </button>
+            <button type="button" class="btn btn-primary" id="submitTrafficBtn">
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../../js/utils.js"></script>
+
+    <script>
+      let flights = [];
+      let trains = [];
+      let editingId = null;
+
+      // 检查登录状态
+      async function checkAuth() {
+        try {
+          const response = await adminApi.getDashboard();
+          if (!response || !response.success) {
+            if (window.parent !== window) {
+              window.parent.location.href = "login.html";
+            } else {
+              window.location.href = "login.html";
+            }
+            return false;
+          }
+          return true;
+        } catch (e) {
+          if (window.parent !== window) {
+            window.parent.location.href = "login.html";
+          } else {
+            window.location.href = "login.html";
+          }
+          return false;
+        }
+      }
+
+      // 加载交通数据
+      async function loadTraffic() {
+        try {
+          const response = await adminApi.getTraffic();
+          if (response && response.success && response.data) {
+            flights = response.data.flights || [];
+            trains = response.data.trains || [];
+
+            displayFlights(flights);
+            displayTrains(trains);
+          } else {
+            showError(
+              document.getElementById("flightsContainer"),
+              "加载交通数据失败"
+            );
+          }
+        } catch (error) {
+          console.error("加载交通数据失败:", error);
+          showError(
+            document.getElementById("flightsContainer"),
+            "加载交通数据失败"
+          );
+        }
+      }
+
+      // 显示航班
+      function displayFlights(flights) {
+        const container = document.getElementById("flightsContainer");
+        if (!flights || flights.length === 0) {
+          showEmpty(container, "暂无航班信息");
+          return;
+        }
+
+        let html = '<table class="table table-hover">';
+        html +=
+          "<thead><tr><th>航班号</th><th>出发城市</th><th>到达城市</th><th>计划时间</th><th>预计时间</th><th>状态</th><th>操作</th></tr></thead>";
+        html += "<tbody>";
+
+        flights.forEach((flight) => {
+          const statusColor = getStatusColor(flight.status);
+          html += `<tr>
+                    <td>${flight.number || "-"}</td>
+                    <td>${flight.departureCity || "-"}</td>
+                    <td>${flight.arrivalCity || "-"}</td>
+                    <td>${formatDate(flight.scheduledTime)}</td>
+                    <td>${formatDate(flight.estimatedTime)}</td>
+                    <td><span class="badge bg-${statusColor}">${getStatusText(
+            flight.status
+          )}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editTraffic(${
+                          flight.id
+                        })">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTraffic(${
+                          flight.id
+                        })">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      }
+
+      // 显示列车
+      function displayTrains(trains) {
+        const container = document.getElementById("trainsContainer");
+        if (!trains || trains.length === 0) {
+          showEmpty(container, "暂无列车信息");
+          return;
+        }
+
+        let html = '<table class="table table-hover">';
+        html +=
+          "<thead><tr><th>车次号</th><th>出发城市</th><th>到达城市</th><th>计划时间</th><th>预计时间</th><th>状态</th><th>操作</th></tr></thead>";
+        html += "<tbody>";
+
+        trains.forEach((train) => {
+          const statusColor = getStatusColor(train.status);
+          html += `<tr>
+                    <td>${train.number || "-"}</td>
+                    <td>${train.departureCity || "-"}</td>
+                    <td>${train.arrivalCity || "-"}</td>
+                    <td>${formatDate(train.scheduledTime)}</td>
+                    <td>${formatDate(train.estimatedTime)}</td>
+                    <td><span class="badge bg-${statusColor}">${getStatusText(
+            train.status
+          )}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editTraffic(${
+                          train.id
+                        })">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteTraffic(${
+                          train.id
+                        })">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      }
+
+      // 编辑交通信息
+      function editTraffic(id) {
+        const allTraffic = [...flights, ...trains];
+        const traffic = allTraffic.find((t) => t.id === id);
+        if (!traffic) return;
+
+        editingId = id;
+        document.getElementById("trafficId").value = id;
+        document.getElementById("trafficType").value = traffic.type;
+        document.getElementById("trafficNumber").value = traffic.number;
+        document.getElementById("departureCity").value =
+          traffic.departureCity || "";
+        document.getElementById("arrivalCity").value =
+          traffic.arrivalCity || "";
+
+        if (traffic.scheduledTime) {
+          const scheduled = new Date(traffic.scheduledTime);
+          document.getElementById("scheduledTime").value = scheduled
+            .toISOString()
+            .slice(0, 16);
+        }
+        if (traffic.estimatedTime) {
+          const estimated = new Date(traffic.estimatedTime);
+          document.getElementById("estimatedTime").value = estimated
+            .toISOString()
+            .slice(0, 16);
+        }
+
+        document.getElementById("trafficStatus").value = traffic.status;
+        document.getElementById("delayReason").value =
+          traffic.delayReason || "";
+
+        const modal = new bootstrap.Modal(
+          document.getElementById("addTrafficModal")
+        );
+        modal.show();
+      }
+
+      // 删除交通信息
+      async function deleteTraffic(id) {
+        if (!confirm("确定要删除此交通信息吗？")) {
+          return;
+        }
+
+        try {
+          const response = await adminApi.deleteTraffic(id);
+          if (response && response.success) {
+            showSuccess("删除成功");
+            loadTraffic();
+          } else {
+            alert("删除失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("删除失败:", error);
+          alert("删除失败，请稍后重试");
+        }
+      }
+
+      // 提交交通信息
+      document
+        .getElementById("submitTrafficBtn")
+        .addEventListener("click", async () => {
+          const id = document.getElementById("trafficId").value;
+          const trafficData = {
+            type: document.getElementById("trafficType").value,
+            number: document.getElementById("trafficNumber").value,
+            departureCity: document.getElementById("departureCity").value,
+            arrivalCity: document.getElementById("arrivalCity").value,
+            scheduledTime: document.getElementById("scheduledTime").value,
+            estimatedTime:
+              document.getElementById("estimatedTime").value || null,
+            status: document.getElementById("trafficStatus").value,
+            delayReason: document.getElementById("delayReason").value || null,
+          };
+
+          try {
+            let response;
+            if (id) {
+              // 更新
+              response = await adminApi.updateTraffic(id, trafficData);
+            } else {
+              // 添加
+              response = await adminApi.addTraffic(trafficData);
+            }
+
+            if (response && response.success) {
+              showSuccess(id ? "更新成功" : "添加成功");
+              bootstrap.Modal.getInstance(
+                document.getElementById("addTrafficModal")
+              ).hide();
+              document.getElementById("trafficForm").reset();
+              editingId = null;
+              loadTraffic();
+            } else {
+              alert(
+                (id ? "更新" : "添加") +
+                  "失败：" +
+                  (response.message || "未知错误")
+              );
+            }
+          } catch (error) {
+            console.error("操作失败:", error);
+            alert("操作失败，请稍后重试");
+          }
+        });
+
+      // 页面加载
+      (async () => {
+        const isAuth = await checkAuth();
+        if (isAuth) {
+          loadTraffic();
+        }
+      })();
+    </script>
+  </body>
+</html>

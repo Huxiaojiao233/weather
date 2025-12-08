@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>景点管理 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../../css/style.css" rel="stylesheet" />
+    <link href="../../css/admin.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="content-page">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-geo-alt"></i> 景点管理</h2>
+        <button
+          class="btn btn-primary"
+          data-bs-toggle="modal"
+          data-bs-target="#addAttractionModal"
+        >
+          <i class="bi bi-plus-circle"></i> 添加景点
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-body">
+          <div id="attractionsContainer">
+            <div class="text-center">
+              <div class="spinner-border" role="status">
+                <span class="visually-hidden">加载中...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 添加/编辑景点模态框 -->
+    <div class="modal fade" id="addAttractionModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">添加景点</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="attractionForm">
+              <input type="hidden" id="attractionId" />
+              <div class="mb-3">
+                <label class="form-label">景点名称</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="attractionName"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">地点代码</label>
+                <select class="form-select" id="locationCode" required>
+                  <option value="SANYA">三亚</option>
+                  <option value="HAIKOU">海口</option>
+                  <option value="DANZHOU">儋州</option>
+                  <option value="SANSA">三沙</option>
+                  <option value="QIONGHAI">琼海</option>
+                  <option value="WANNING">万宁</option>
+                  <option value="DONGFANG">东方</option>
+                  <option value="WUZHISHAN">五指山</option>
+                  <option value="CHENGMAI">澄迈</option>
+                  <option value="LINGAO">临高</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">地址</label>
+                <input type="text" class="form-control" id="address" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">开放状态</label>
+                <select class="form-select" id="openStatus" required>
+                  <option value="OPEN">开放</option>
+                  <option value="CLOSED">关闭</option>
+                  <option value="LIMITED">限时开放</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">关闭原因</label>
+                <textarea
+                  class="form-control"
+                  id="closeReason"
+                  rows="2"
+                ></textarea>
+              </div>
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label class="form-label">开放时间</label>
+                    <input type="time" class="form-control" id="openTime" />
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="mb-3">
+                    <label class="form-label">关闭时间</label>
+                    <input type="time" class="form-control" id="closeTime" />
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              id="submitAttractionBtn"
+            >
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../../js/utils.js"></script>
+
+    <script>
+      let attractions = [];
+      let editingId = null;
+
+      // 检查登录状态
+      async function checkAuth() {
+        try {
+          const response = await adminApi.getDashboard();
+          if (!response || !response.success) {
+            if (window.parent !== window) {
+              window.parent.location.href = "login.html";
+            } else {
+              window.location.href = "login.html";
+            }
+            return false;
+          }
+          return true;
+        } catch (e) {
+          if (window.parent !== window) {
+            window.parent.location.href = "login.html";
+          } else {
+            window.location.href = "login.html";
+          }
+          return false;
+        }
+      }
+
+      // 加载景点数据
+      async function loadAttractions() {
+        try {
+          const response = await adminApi.getAttractions();
+          if (response && response.success && response.data) {
+            attractions = response.data.attractions || [];
+            displayAttractions(attractions);
+          } else {
+            showError(
+              document.getElementById("attractionsContainer"),
+              "加载景点数据失败"
+            );
+          }
+        } catch (error) {
+          console.error("加载景点数据失败:", error);
+          showError(
+            document.getElementById("attractionsContainer"),
+            "加载景点数据失败"
+          );
+        }
+      }
+
+      // 显示景点列表
+      function displayAttractions(attractions) {
+        const container = document.getElementById("attractionsContainer");
+        if (!attractions || attractions.length === 0) {
+          showEmpty(container, "暂无景点信息");
+          return;
+        }
+
+        let html = '<table class="table table-hover">';
+        html +=
+          "<thead><tr><th>景点名称</th><th>地点</th><th>地址</th><th>开放状态</th><th>开放时间</th><th>操作</th></tr></thead>";
+        html += "<tbody>";
+
+        attractions.forEach((attraction) => {
+          const statusColor = getStatusColor(attraction.openStatus);
+          html += `<tr>
+                    <td>${attraction.name || "-"}</td>
+                    <td>${getCityName(attraction.locationCode)}</td>
+                    <td>${attraction.address || "-"}</td>
+                    <td><span class="badge bg-${statusColor}">${getStatusText(
+            attraction.openStatus
+          )}</span></td>
+                    <td>${formatTime(attraction.openTime)} - ${formatTime(
+            attraction.closeTime
+          )}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editAttraction(${
+                          attraction.id
+                        })">
+                            <i class="bi bi-pencil"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteAttraction(${
+                          attraction.id
+                        })">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
+                </tr>`;
+        });
+
+        html += "</tbody></table>";
+        container.innerHTML = html;
+      }
+
+      // 编辑景点
+      function editAttraction(id) {
+        const attraction = attractions.find((a) => a.id === id);
+        if (!attraction) return;
+
+        editingId = id;
+        document.getElementById("attractionId").value = id;
+        document.getElementById("attractionName").value = attraction.name || "";
+        document.getElementById("locationCode").value =
+          attraction.locationCode || "SANYA";
+        document.getElementById("address").value = attraction.address || "";
+        document.getElementById("openStatus").value =
+          attraction.openStatus || "OPEN";
+        document.getElementById("closeReason").value =
+          attraction.closeReason || "";
+
+        if (attraction.openTime) {
+          document.getElementById("openTime").value = formatTime(
+            attraction.openTime
+          );
+        }
+        if (attraction.closeTime) {
+          document.getElementById("closeTime").value = formatTime(
+            attraction.closeTime
+          );
+        }
+
+        const modal = new bootstrap.Modal(
+          document.getElementById("addAttractionModal")
+        );
+        modal.show();
+      }
+
+      // 删除景点
+      async function deleteAttraction(id) {
+        if (!confirm("确定要删除此景点吗？")) {
+          return;
+        }
+
+        try {
+          const response = await adminApi.deleteAttraction(id);
+          if (response && response.success) {
+            showSuccess("删除成功");
+            loadAttractions();
+          } else {
+            alert("删除失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("删除失败:", error);
+          alert("删除失败，请稍后重试");
+        }
+      }
+
+      // 提交景点信息
+      document
+        .getElementById("submitAttractionBtn")
+        .addEventListener("click", async () => {
+          const id = document.getElementById("attractionId").value;
+          const attractionData = {
+            name: document.getElementById("attractionName").value,
+            locationCode: document.getElementById("locationCode").value,
+            address: document.getElementById("address").value,
+            openStatus: document.getElementById("openStatus").value,
+            closeReason: document.getElementById("closeReason").value || null,
+            openTime: document.getElementById("openTime").value || null,
+            closeTime: document.getElementById("closeTime").value || null,
+          };
+
+          try {
+            let response;
+            if (id) {
+              // 更新
+              response = await adminApi.updateAttraction(id, attractionData);
+            } else {
+              // 添加
+              response = await adminApi.addAttraction(attractionData);
+            }
+
+            if (response && response.success) {
+              showSuccess(id ? "更新成功" : "添加成功");
+              bootstrap.Modal.getInstance(
+                document.getElementById("addAttractionModal")
+              ).hide();
+              document.getElementById("attractionForm").reset();
+              editingId = null;
+              loadAttractions();
+            } else {
+              alert(
+                (id ? "更新" : "添加") +
+                  "失败：" +
+                  (response.message || "未知错误")
+              );
+            }
+          } catch (error) {
+            console.error("操作失败:", error);
+            alert("操作失败，请稍后重试");
+          }
+        });
+
+      // 页面加载
+      (async () => {
+        const isAuth = await checkAuth();
+        if (isAuth) {
+          loadAttractions();
+        }
+      })();
+    </script>
+  </body>
+</html>

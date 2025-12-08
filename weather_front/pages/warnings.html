@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>天气预警 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../css/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- 主内容 -->
+    <div class="container main-container">
+      <h2 class="mb-4"><i class="bi bi-exclamation-triangle"></i> 天气预警</h2>
+
+      <!-- 查询表单 -->
+      <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-filter"></i> 筛选条件</div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">预警类型</label>
+              <select class="form-select" id="warningTypeSelect">
+                <option value="">全部类型</option>
+                <option value="台风">台风</option>
+                <option value="暴雨">暴雨</option>
+                <option value="大风">大风</option>
+                <option value="雷电">雷电</option>
+              </select>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">预警级别</label>
+              <select class="form-select" id="warningLevelSelect">
+                <option value="">全部级别</option>
+                <option value="红色">红色</option>
+                <option value="橙色">橙色</option>
+                <option value="黄色">黄色</option>
+                <option value="蓝色">蓝色</option>
+              </select>
+            </div>
+            <div class="col-md-4 mb-3 d-flex align-items-end">
+              <button class="btn btn-primary w-100" onclick="queryWarnings()">
+                <i class="bi bi-search"></i> 查询
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 预警列表 -->
+      <div id="warningsList"></div>
+
+      <!-- 综合预警 -->
+      <div class="card mt-4">
+        <div class="card-header">
+          <i class="bi bi-info-circle"></i> 综合预警
+        </div>
+        <div class="card-body">
+          <button
+            class="btn btn-outline-primary"
+            onclick="loadComprehensiveWarnings()"
+          >
+            <i class="bi bi-list-ul"></i> 查看综合预警
+          </button>
+          <div id="comprehensiveWarnings" class="mt-3"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../js/utils.js"></script>
+
+    <script>
+      // 查询预警
+      async function queryWarnings() {
+        const warningType = document.getElementById("warningTypeSelect").value;
+        const warningLevel =
+          document.getElementById("warningLevelSelect").value;
+        const resultDiv = document.getElementById("warningsList");
+
+        showLoading(resultDiv);
+
+        try {
+          let data;
+          if (warningType && !warningLevel) {
+            data = await weatherApi.getWarningsByType(warningType);
+          } else if (warningLevel && !warningType) {
+            data = await weatherApi.getWarningsByLevel(warningLevel);
+          } else {
+            data = await weatherApi.getWarnings();
+          }
+          displayWarnings(data);
+        } catch (error) {
+          showError(resultDiv, "查询失败，请检查网络连接或稍后重试");
+        }
+      }
+
+      // 显示预警列表
+      function displayWarnings(data) {
+        const resultDiv = document.getElementById("warningsList");
+
+        // 处理包装的响应格式 {data: {allWarnings} 或 {warnings, warningType} 或 {warnings, warningLevel}, success: true}
+        let warnings = [];
+        if (data && data.data) {
+          if (data.data.allWarnings) {
+            warnings = data.data.allWarnings;
+          } else if (data.data.warnings) {
+            warnings = data.data.warnings;
+          } else if (Array.isArray(data.data)) {
+            warnings = data.data;
+          }
+        } else if (Array.isArray(data)) {
+          warnings = data;
+        }
+
+        if (warnings.length === 0) {
+          showEmpty(resultDiv, "暂无预警信息");
+          return;
+        }
+
+        let html = '<div class="row">';
+        warnings.forEach((warning) => {
+          const levelColor = getWarningLevelColor(warning.warningLevel);
+          html += `
+                    <div class="col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-${levelColor}">
+                                <span class="badge bg-${levelColor}">${
+            warning.warningLevel || "-"
+          }</span>
+                                ${warning.warningType || "-"}
+                            </div>
+                            <div class="card-body">
+                                <h5>${warning.title || "-"}</h5>
+                                <p class="text-muted">${
+                                  warning.content || "-"
+                                }</p>
+                                <div class="d-flex justify-content-between">
+                                    <small>城市: ${
+                                      getCityName(warning.locationCode) || "-"
+                                    }</small>
+                                    <small>发布时间: ${
+                                      formatDate(warning.issueTime) || "-"
+                                    }</small>
+                                </div>
+                                ${
+                                  warning.expireTime
+                                    ? `<small class="text-muted">有效期至: ${formatDate(
+                                        warning.expireTime
+                                      )}</small>`
+                                    : ""
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+        });
+        html += "</div>";
+
+        resultDiv.innerHTML = html;
+      }
+
+      // 加载综合预警
+      async function loadComprehensiveWarnings() {
+        const resultDiv = document.getElementById("comprehensiveWarnings");
+        showLoading(resultDiv);
+
+        try {
+          const data = await warningApi.getComprehensive();
+          displayComprehensiveWarnings(data);
+        } catch (error) {
+          showError(resultDiv, "加载综合预警失败");
+        }
+      }
+
+      // 显示综合预警
+      function displayComprehensiveWarnings(data) {
+        const resultDiv = document.getElementById("comprehensiveWarnings");
+
+        // 处理包装的响应格式 {data: {publishedWarnings}, success: true}
+        let warnings = [];
+        if (data && data.data) {
+          if (data.data.publishedWarnings) {
+            warnings = data.data.publishedWarnings;
+          } else if (Array.isArray(data.data)) {
+            warnings = data.data;
+          }
+        } else if (Array.isArray(data)) {
+          warnings = data;
+        }
+
+        if (warnings.length === 0) {
+          showEmpty(resultDiv, "暂无综合预警");
+          return;
+        }
+
+        let html = '<div class="row">';
+        warnings.forEach((warning) => {
+          const levelColor = getWarningLevelColor(warning.warningLevel);
+          html += `
+                    <div class="col-md-12 mb-3">
+                        <div class="card">
+                            <div class="card-header bg-${levelColor}">
+                                <span class="badge bg-${levelColor}">${
+            warning.warningLevel || "-"
+          }</span>
+                                综合预警
+                            </div>
+                            <div class="card-body">
+                                <h5>${warning.title || "-"}</h5>
+                                <p>${warning.content || "-"}</p>
+                                ${
+                                  warning.affectedLocations
+                                    ? `<p><strong>影响地区:</strong> ${warning.affectedLocations}</p>`
+                                    : ""
+                                }
+                                ${
+                                  warning.trafficEffects
+                                    ? `<p><strong>交通影响:</strong> ${warning.trafficEffects}</p>`
+                                    : ""
+                                }
+                                ${
+                                  warning.attractionEffects
+                                    ? `<p><strong>景点影响:</strong> ${warning.attractionEffects}</p>`
+                                    : ""
+                                }
+                                <small class="text-muted">发布时间: ${
+                                  formatDate(warning.publishTime) || "-"
+                                }</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+        });
+        html += "</div>";
+
+        resultDiv.innerHTML = html;
+      }
+
+      // 页面加载时默认查询所有预警
+      window.addEventListener("DOMContentLoaded", function () {
+        queryWarnings();
+      });
+    </script>
+  </body>
+</html>

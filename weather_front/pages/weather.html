@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>天气查询 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../css/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- 主内容 -->
+    <div class="container main-container">
+      <h2 class="mb-4"><i class="bi bi-cloud-sun"></i> 天气查询</h2>
+
+      <!-- 查询表单 -->
+      <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-search"></i> 查询条件</div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <label class="form-label">城市</label>
+              <select class="form-select" id="locationSelect">
+                <option value="SANYA">三亚</option>
+                <option value="HAIKOU">海口</option>
+                <option value="DANZHOU">儋州</option>
+                <option value="SANSA">三沙</option>
+                <option value="QIONGHAI">琼海</option>
+                <option value="WANNING">万宁</option>
+                <option value="DONGFANG">东方</option>
+                <option value="WUZHISHAN">五指山</option>
+                <option value="CHENGMAI">澄迈</option>
+                <option value="LINGAO">临高</option>
+              </select>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label">查询类型</label>
+              <select class="form-select" id="queryType">
+                <option value="realtime">实时天气</option>
+                <option value="forecast">天气预报</option>
+                <option value="history">历史天气</option>
+              </select>
+            </div>
+            <div class="col-md-4 mb-3" id="dateContainer" style="display: none">
+              <label class="form-label">日期</label>
+              <input type="date" class="form-control" id="dateInput" />
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="queryWeather()">
+            <i class="bi bi-search"></i> 查询
+          </button>
+        </div>
+      </div>
+
+      <!-- 查询结果 -->
+      <div id="weatherResult"></div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../js/utils.js"></script>
+
+    <script>
+      // 查询类型改变时显示/隐藏日期选择
+      document
+        .getElementById("queryType")
+        .addEventListener("change", function () {
+          const dateContainer = document.getElementById("dateContainer");
+          if (this.value === "history") {
+            dateContainer.style.display = "block";
+          } else {
+            dateContainer.style.display = "none";
+          }
+        });
+
+      // 查询天气
+      async function queryWeather() {
+        const location = document.getElementById("locationSelect").value;
+        const queryType = document.getElementById("queryType").value;
+        const resultDiv = document.getElementById("weatherResult");
+
+        showLoading(resultDiv);
+
+        try {
+          let response;
+          if (queryType === "realtime") {
+            response = await weatherApi.getRealtime(location);
+            // 检查响应是否成功
+            if (!response || !response.success) {
+              showError(
+                resultDiv,
+                response && response.message
+                  ? response.message
+                  : "获取实时天气失败"
+              );
+              return;
+            }
+            // 提取 data 部分
+            const data = response.data || {};
+            displayRealtimeWeather(data, location);
+          } else if (queryType === "forecast") {
+            response = await weatherApi.getForecast(location);
+            // 检查响应是否成功
+            if (!response || !response.success) {
+              showError(
+                resultDiv,
+                response && response.message
+                  ? response.message
+                  : "获取天气预报失败"
+              );
+              return;
+            }
+            // 提取 data 部分
+            const data = response.data || {};
+            displayForecast(data, location);
+          } else if (queryType === "history") {
+            const date = document.getElementById("dateInput").value;
+            response = await weatherApi.getHistory(location, date);
+            // 检查响应是否成功
+            if (!response || !response.success) {
+              showError(
+                resultDiv,
+                response && response.message
+                  ? response.message
+                  : "获取历史天气失败"
+              );
+              return;
+            }
+            // 提取 data 部分
+            const data = response.data || {};
+            displayHistory(data, location);
+          }
+        } catch (error) {
+          console.error("查询天气失败:", error);
+          showError(resultDiv, "查询失败，请检查网络连接或稍后重试");
+        }
+      }
+
+      // 显示实时天气
+      function displayRealtimeWeather(data, location) {
+        const resultDiv = document.getElementById("weatherResult");
+
+        // data 已经是 {weather, location, locationWarnings} 格式（在 queryWeather 中已提取）
+        if (!data || !data.weather) {
+          showEmpty(resultDiv, "暂无实时天气数据");
+          return;
+        }
+
+        const weather = data.weather;
+        const locationWarnings = data.locationWarnings || [];
+        const cityName = getCityName(location);
+
+        let warningsHtml = "";
+        if (locationWarnings && locationWarnings.length > 0) {
+          warningsHtml = '<div class="mt-3"><h6>相关预警：</h6>';
+          locationWarnings.forEach((warning) => {
+            const levelColor = getWarningLevelColor(warning.warningLevel);
+            warningsHtml += `<span class="badge bg-${levelColor} me-2">${warning.warningLevel} ${warning.warningType}</span>`;
+          });
+          warningsHtml += "</div>";
+        }
+
+        resultDiv.innerHTML = `
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-thermometer-half"></i> ${cityName} - 实时天气
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h3>${getWeatherIcon(
+                                  weather.weatherCondition || "晴"
+                                )} ${weather.weatherCondition || "晴"}</h3>
+                                <h2 class="text-primary">${
+                                  weather.temperature || "-"
+                                }°C</h2>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table">
+                                    <tr>
+                                        <td>湿度</td>
+                                        <td>${weather.humidity || "-"}%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>风速</td>
+                                        <td>${weather.windSpeed || "-"} m/s ${
+          weather.windDirection || ""
+        }</td>
+                                    </tr>
+                                    <tr>
+                                        <td>降水量</td>
+                                        <td>${
+                                          weather.precipitation || "0"
+                                        } mm</td>
+                                    </tr>
+                                    <tr>
+                                        <td>气压</td>
+                                        <td>${weather.pressure || "-"} hPa</td>
+                                    </tr>
+                                    <tr>
+                                        <td>能见度</td>
+                                        <td>${weather.visibility || "-"} km</td>
+                                    </tr>
+                                    <tr>
+                                        <td>更新时间</td>
+                                        <td>${
+                                          formatDate(weather.updateTime) || "-"
+                                        }</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        ${warningsHtml}
+                    </div>
+                </div>
+            `;
+      }
+
+      // 显示天气预报
+      function displayForecast(data, location) {
+        const resultDiv = document.getElementById("weatherResult");
+
+        // data 已经是 {forecasts: [...], location} 格式（在 queryWeather 中已提取）
+        let forecasts = [];
+        if (data && data.forecasts) {
+          forecasts = data.forecasts;
+        } else if (Array.isArray(data)) {
+          forecasts = data;
+        }
+
+        if (forecasts.length === 0) {
+          showEmpty(resultDiv, "暂无天气预报数据");
+          return;
+        }
+
+        const cityName = getCityName(location);
+
+        let html = `
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-calendar3"></i> ${cityName} - 天气预报
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+            `;
+
+        forecasts.forEach((item) => {
+          html += `
+                    <div class="col-md-4 mb-3">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <h5>${formatDateOnly(item.forecastDate)}</h5>
+                                <h3>${getWeatherIcon(item.dayCondition)}</h3>
+                                <p>${item.dayCondition || "-"} / ${
+            item.nightCondition || "-"
+          }</p>
+                                <h4 class="text-primary">${
+                                  item.highTemp || "-"
+                                }° / ${item.lowTemp || "-"}°</h4>
+                                <small>风速: ${
+                                  item.windSpeed || "-"
+                                } m/s</small><br>
+                                <small>湿度: ${
+                                  item.humidity || "-"
+                                }%</small><br>
+                                <small>降水概率: ${
+                                  item.precipitationProb || "-"
+                                }%</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+        });
+
+        html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+
+        resultDiv.innerHTML = html;
+      }
+
+      // 显示历史天气
+      function displayHistory(data, location) {
+        const resultDiv = document.getElementById("weatherResult");
+
+        // data 已经是 {location, selectedDate, historicalWeather, recentWeather} 格式（在 queryWeather 中已提取）
+        if (!data) {
+          showEmpty(resultDiv, "暂无历史天气数据");
+          return;
+        }
+
+        const historicalWeather = data.historicalWeather;
+        const recentWeather = data.recentWeather || [];
+        const cityName = getCityName(location);
+
+        let html = `
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history"></i> ${cityName} - 历史天气
+                    </div>
+                    <div class="card-body">
+            `;
+
+        if (historicalWeather) {
+          html += `
+                    <h5>指定日期天气</h5>
+                    <table class="table mb-4">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>天气</th>
+                                <th>温度</th>
+                                <th>湿度</th>
+                                <th>风速</th>
+                                <th>降水量</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>${formatDateOnly(
+                                  historicalWeather.dataDate
+                                )}</td>
+                                <td>${getWeatherIcon(
+                                  historicalWeather.weatherCondition
+                                )} ${
+            historicalWeather.weatherCondition || "-"
+          }</td>
+                                <td>${
+                                  historicalWeather.temperature || "-"
+                                }°C</td>
+                                <td>${historicalWeather.humidity || "-"}%</td>
+                                <td>${
+                                  historicalWeather.windSpeed || "-"
+                                } m/s</td>
+                                <td>${
+                                  historicalWeather.precipitation || "0"
+                                } mm</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                `;
+        }
+
+        if (recentWeather && recentWeather.length > 0) {
+          html += `
+                    <h5>最近7天天气</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>天气</th>
+                                    <th>温度</th>
+                                    <th>湿度</th>
+                                    <th>风速</th>
+                                    <th>降水量</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+          recentWeather.forEach((weather) => {
+            html += `
+                        <tr>
+                            <td>${formatDateOnly(weather.dataDate)}</td>
+                            <td>${getWeatherIcon(weather.weatherCondition)} ${
+              weather.weatherCondition || "-"
+            }</td>
+                            <td>${weather.temperature || "-"}°C</td>
+                            <td>${weather.humidity || "-"}%</td>
+                            <td>${weather.windSpeed || "-"} m/s</td>
+                            <td>${weather.precipitation || "0"} mm</td>
+                        </tr>
+                    `;
+          });
+          html += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+        }
+
+        html += `
+                    </div>
+                </div>
+            `;
+        resultDiv.innerHTML = html;
+      }
+
+      // 页面加载时默认查询三亚实时天气
+      window.addEventListener("DOMContentLoaded", function () {
+        queryWeather();
+      });
+    </script>
+  </body>
+</html>

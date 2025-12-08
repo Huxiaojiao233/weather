@@ -1,0 +1,39 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /weather
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/weather?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  
+  # 添加 Web 资源配置以支持
+  web:
+    resources:
+      static-locations: classpath:/static/,classpath:/public/,classpath:/resources/,classpath:/META-INF/resources/
+
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    encoding: UTF-8
+
+  # Session配置
+  session:
+    timeout: 30m
+    cookie:
+      http-only: true
+      secure: false
+      same-site: lax
+      max-age: 1800
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.hainan.weather.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

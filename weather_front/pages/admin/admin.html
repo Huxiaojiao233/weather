@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>管理后台 - 天气服务系统</title>
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"
+      rel="stylesheet"
+    />
+    <!-- 自定义样式 -->
+    <link href="../../css/style.css" rel="stylesheet" />
+    <link href="../../css/admin.css" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="container-fluid">
+      <div class="row">
+        <!-- 侧边栏 -->
+        <div class="col-md-2 admin-sidebar" id="sidebarContainer"></div>
+
+        <!-- 主内容区 - 使用iframe -->
+        <div class="col-md-10 admin-content">
+          <iframe
+            id="contentFrame"
+            class="admin-iframe"
+            src="dashboard.html"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- API 封装 -->
+    <script src="../../js/api.js"></script>
+    <!-- 工具函数 -->
+    <script src="../../js/utils.js"></script>
+    <!-- 侧边栏组件 -->
+    <script src="../../js/components/sidebar.js"></script>
+
+    <script>
+      let sidebar;
+      let currentPage = "dashboard";
+
+      // 检查登录状态
+      async function checkAuth() {
+        try {
+          const response = await adminApi.getDashboard();
+          if (!response || !response.success) {
+            window.location.href = "login.html";
+            return false;
+          }
+          return true;
+        } catch (e) {
+          window.location.href = "login.html";
+          return false;
+        }
+      }
+
+      // 导航到指定页面
+      function navigateToPage(pageUrl, pageId) {
+        const iframe = document.getElementById("contentFrame");
+        if (iframe) {
+          iframe.src = pageUrl;
+          currentPage = pageId;
+        }
+      }
+
+      // 初始化
+      (async () => {
+        const isAuth = await checkAuth();
+        if (isAuth) {
+          // 初始化侧边栏
+          sidebar = new AdminSidebar("sidebarContainer", navigateToPage);
+
+          // 从URL参数获取初始页面
+          const urlParams = new URLSearchParams(window.location.search);
+          const page = urlParams.get("page") || "dashboard";
+          const pageMap = {
+            dashboard: "dashboard.html",
+            users: "users.html",
+            weather: "weather.html",
+            warnings: "warnings.html",
+            traffic: "traffic.html",
+            attractions: "attractions.html",
+            logs: "logs.html",
+          };
+
+          if (pageMap[page]) {
+            navigateToPage(pageMap[page], page);
+            sidebar.setActive(page);
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>
