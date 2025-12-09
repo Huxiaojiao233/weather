@@ -285,7 +285,15 @@ const adminApi = {
     // 系统日志
     getLogs: () => {
         return api.get('/api/admin/logs');
+    },
+
+    // 同步天气和预警数据
+    syncWeatherData: () => {
+        return api.post('/api/admin/weather/sync', {});
+    },
+
+    // 模拟发布天气预警
+    simulateWeatherWarning: (warningData) => {
+        return api.post('/api/admin/warnings/simulate', warningData);
     }
 };
-
-

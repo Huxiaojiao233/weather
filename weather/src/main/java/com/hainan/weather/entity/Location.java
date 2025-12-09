@@ -12,5 +12,6 @@ public class Location {
     private String locationCode;
     private BigDecimal latitude;
     private BigDecimal longitude;
+    private String locationId; // 和风天气的location_id
     private Integer status; // 1-启用，0-禁用
 }

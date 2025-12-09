@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,9 @@ public class AdminController {
     @Autowired
     private SystemService systemService;
 
+    @Autowired
+    private com.hainan.weather.service.QWeatherApiService qWeatherApiService;
+
     /**
      * 管理员登录接口
      */
@@ -60,10 +64,10 @@ public class AdminController {
                 session.setAttribute("userId", user.getId());
                 session.setAttribute("username", user.getUsername());
                 session.setAttribute("isAdmin", true);
-                
+
                 // 设置Session超时时间（30分钟）
                 session.setMaxInactiveInterval(30 * 60);
-                
+
                 log.info("管理员登录成功，Session ID: {}, User ID: {}", session.getId(), user.getId());
 
                 systemService.logOperation(user.getId(), "LOGIN", "ADMIN",
@@ -460,7 +464,7 @@ public class AdminController {
             Long userId = (Long) session.getAttribute("userId");
             boolean success = weatherService.updateWeatherData(weatherData);
             if (success) {
-                systemService.logOperation(userId, "UPDATE", "WEATHER", 
+                systemService.logOperation(userId, "UPDATE", "WEATHER",
                         "更新天气数据: " + weatherData.getLocationCode(), request.getRemoteAddr());
             }
             response.put("success", success);
@@ -646,6 +650,108 @@ public class AdminController {
             log.error("删除景点失败", e);
             response.put("success", false);
             response.put("message", "删除失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 手动同步天气和预警数据接口
+     */
+    @PostMapping("/weather/sync")
+    @ApiOperation(value = "手动同步天气和预警数据", notes = "手动触发从和风天气API同步天气和预警数据")
+    public ResponseEntity<Map<String, Object>> syncWeatherData(HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            log.info("管理员手动触发同步天气和预警数据, userId: {}", userId);
+            qWeatherApiService.syncAllLocations();
+
+            systemService.logOperation(userId, "SYNC", "WEATHER",
+                    "手动同步天气和预警数据", request.getRemoteAddr());
+
+            response.put("success", true);
+            response.put("message", "同步成功");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("手动同步天气和预警数据失败", e);
+            response.put("success", false);
+            response.put("message", "同步失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 模拟发布天气预警接口
+     */
+    @PostMapping("/warnings/simulate")
+    @ApiOperation(value = "模拟发布天气预警", notes = "模拟发布一条天气预警信息")
+    public ResponseEntity<Map<String, Object>> simulateWeatherWarning(
+            @ApiParam(value = "预警信息", required = true)
+            @RequestBody Map<String, Object> warningData,
+            HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            WeatherWarning warning = new WeatherWarning();
+            warning.setLocationCode((String) warningData.get("locationCode"));
+            warning.setWarningType((String) warningData.get("warningType"));
+            warning.setWarningLevel((String) warningData.get("warningLevel"));
+            warning.setTitle((String) warningData.get("title"));
+            warning.setContent((String) warningData.get("content"));
+
+            // 解析时间
+            if (warningData.get("effectiveTime") != null) {
+                String effectiveTimeStr = (String) warningData.get("effectiveTime");
+                warning.setEffectiveTime(LocalDateTime.parse(effectiveTimeStr.replace("T", " ").substring(0, 16),
+                        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+            } else {
+                warning.setEffectiveTime(LocalDateTime.now());
+            }
+
+            if (warningData.get("expireTime") != null) {
+                String expireTimeStr = (String) warningData.get("expireTime");
+                warning.setExpireTime(LocalDateTime.parse(expireTimeStr.replace("T", " ").substring(0, 16),
+                        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+            } else {
+                warning.setExpireTime(LocalDateTime.now().plusHours(24));
+            }
+
+            warning.setIssueTime(LocalDateTime.now());
+            warning.setStatus("ACTIVE");
+
+            boolean success = warningService.saveWeatherWarning(warning, userId);
+            if (success) {
+                systemService.logOperation(userId, "SIMULATE", "WARNING",
+                        "模拟发布天气预警: " + warning.getTitle(), request.getRemoteAddr());
+                response.put("success", true);
+                response.put("message", "模拟预警发布成功");
+            } else {
+                response.put("success", false);
+                response.put("message", "模拟预警发布失败");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("模拟发布天气预警失败", e);
+            response.put("success", false);
+            response.put("message", "模拟预警发布失败: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }

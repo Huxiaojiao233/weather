@@ -23,13 +23,29 @@
     <div class="content-page">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="bi bi-exclamation-triangle"></i> 预警管理</h2>
-        <button
-          class="btn btn-primary"
-          data-bs-toggle="modal"
-          data-bs-target="#createWarningModal"
-        >
-          <i class="bi bi-plus-circle"></i> 创建综合预警
-        </button>
+        <div>
+          <button
+            class="btn btn-success me-2"
+            id="syncWeatherBtn"
+            onclick="syncWeatherData()"
+          >
+            <i class="bi bi-arrow-clockwise"></i> 同步天气数据
+          </button>
+          <button
+            class="btn btn-warning me-2"
+            data-bs-toggle="modal"
+            data-bs-target="#simulateWarningModal"
+          >
+            <i class="bi bi-cloud-lightning"></i> 模拟天气预警发布
+          </button>
+          <button
+            class="btn btn-primary"
+            data-bs-toggle="modal"
+            data-bs-target="#createWarningModal"
+          >
+            <i class="bi bi-plus-circle"></i> 创建综合预警
+          </button>
+        </div>
       </div>
 
       <!-- 标签页 -->
@@ -89,6 +105,107 @@
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 模拟天气预警发布模态框 -->
+    <div class="modal fade" id="simulateWarningModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">模拟天气预警发布</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="simulateWarningForm">
+              <div class="mb-3">
+                <label class="form-label">地点代码</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="simulateLocationCode"
+                  placeholder="例如：SANYA"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">预警类型</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="simulateWarningType"
+                  placeholder="例如：大风、暴雨、台风等"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">预警级别</label>
+                <select class="form-select" id="simulateWarningLevel" required>
+                  <option value="红色">红色</option>
+                  <option value="橙色">橙色</option>
+                  <option value="黄色">黄色</option>
+                  <option value="蓝色">蓝色</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">标题</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="simulateTitle"
+                  placeholder="例如：三亚市气象台发布大风蓝色预警信号"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">内容</label>
+                <textarea
+                  class="form-control"
+                  id="simulateContent"
+                  rows="4"
+                  placeholder="预警详细内容..."
+                  required
+                ></textarea>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">生效时间</label>
+                  <input
+                    type="datetime-local"
+                    class="form-control"
+                    id="simulateEffectiveTime"
+                    required
+                  />
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">过期时间</label>
+                  <input
+                    type="datetime-local"
+                    class="form-control"
+                    id="simulateExpireTime"
+                    required
+                  />
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              取消
+            </button>
+            <button type="button" class="btn btn-warning" id="submitSimulateBtn">
+              发布模拟预警
+            </button>
           </div>
         </div>
       </div>
@@ -396,6 +513,75 @@
           } catch (error) {
             console.error("创建预警失败:", error);
             alert("创建失败，请稍后重试");
+          }
+        });
+
+      // 同步天气数据
+      async function syncWeatherData() {
+        const btn = document.getElementById("syncWeatherBtn");
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
+
+        try {
+          const response = await adminApi.syncWeatherData();
+          if (response && response.success) {
+            showSuccess("同步成功");
+            loadWarnings();
+          } else {
+            alert("同步失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("同步天气数据失败:", error);
+          alert("同步失败，请稍后重试");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      }
+
+      // 提交模拟预警
+      document
+        .getElementById("submitSimulateBtn")
+        .addEventListener("click", async () => {
+          const locationCode = document.getElementById("simulateLocationCode").value;
+          const warningType = document.getElementById("simulateWarningType").value;
+          const warningLevel = document.getElementById("simulateWarningLevel").value;
+          const title = document.getElementById("simulateTitle").value;
+          const content = document.getElementById("simulateContent").value;
+          const effectiveTime = document.getElementById("simulateEffectiveTime").value;
+          const expireTime = document.getElementById("simulateExpireTime").value;
+
+          if (!locationCode || !warningType || !title || !content || !effectiveTime || !expireTime) {
+            alert("请填写所有必填项");
+            return;
+          }
+
+          try {
+            const warningData = {
+              locationCode,
+              warningType,
+              warningLevel,
+              title,
+              content,
+              effectiveTime,
+              expireTime
+            };
+
+            const response = await adminApi.simulateWeatherWarning(warningData);
+            if (response && response.success) {
+              showSuccess("模拟预警发布成功");
+              bootstrap.Modal.getInstance(
+                document.getElementById("simulateWarningModal")
+              ).hide();
+              document.getElementById("simulateWarningForm").reset();
+              loadWarnings();
+            } else {
+              alert("发布失败：" + (response.message || "未知错误"));
+            }
+          } catch (error) {
+            console.error("发布模拟预警失败:", error);
+            alert("发布失败，请稍后重试");
           }
         });
 
