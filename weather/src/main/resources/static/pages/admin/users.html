@@ -23,6 +23,13 @@
     <div class="content-page">
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="bi bi-people"></i> 用户管理</h2>
+            <button
+              class="btn btn-primary"
+              data-bs-toggle="modal"
+              data-bs-target="#addUserModal"
+            >
+              <i class="bi bi-plus-circle"></i> 添加用户
+            </button>
           </div>
 
           <div class="card">
@@ -37,6 +44,78 @@
             </div>
           </div>
         </div>
+    </div>
+
+    <!-- 添加用户模态框 -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">添加用户</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="addUserForm">
+              <div class="mb-3">
+                <label class="form-label">用户名</label>
+                <input type="text" class="form-control" id="addUsername" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">密码</label>
+                <input type="password" class="form-control" id="addPassword" required />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">邮箱</label>
+                <input type="email" class="form-control" id="addEmail" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">电话</label>
+                <input type="text" class="form-control" id="addPhone" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">角色</label>
+                <select class="form-select" id="addRole" required>
+                  <option value="USER">操作员</option>
+                  <option value="ADMIN">管理员</option>
+                </select>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" id="submitAddUserBtn">添加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 修改密码模态框 -->
+    <div class="modal fade" id="updatePasswordModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">修改密码</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <form id="updatePasswordForm">
+              <input type="hidden" id="updatePasswordUserId" />
+              <div class="mb-3">
+                <label class="form-label">用户名</label>
+                <input type="text" class="form-control" id="updatePasswordUsername" readonly />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">新密码</label>
+                <input type="password" class="form-control" id="updatePasswordNewPassword" required />
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+            <button type="button" class="btn btn-primary" id="submitUpdatePasswordBtn">修改</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Bootstrap JS -->
@@ -101,14 +180,14 @@
 
         let html = '<table class="table table-hover">';
         html +=
-          "<thead><tr><th>ID</th><th>用户名</th><th>邮箱</th><th>电话</th><th>角色</th><th>创建时间</th></tr></thead>";
+          "<thead><tr><th>ID</th><th>用户名</th><th>邮箱</th><th>电话</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>";
         html += "<tbody>";
 
         users.forEach((user) => {
           const roleBadge =
             user.role === "ADMIN"
               ? '<span class="badge bg-danger">管理员</span>'
-              : '<span class="badge bg-secondary">普通用户</span>';
+              : '<span class="badge bg-secondary">操作员</span>';
 
           html += `<tr>
                     <td>${user.id || "-"}</td>
@@ -117,12 +196,110 @@
                     <td>${user.phone || "-"}</td>
                     <td>${roleBadge}</td>
                     <td>${formatDate(user.createdTime)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning me-1" onclick="showUpdatePasswordModal(${user.id}, '${user.username}')">
+                            <i class="bi bi-key"></i> 修改密码
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">
+                            <i class="bi bi-trash"></i> 删除
+                        </button>
+                    </td>
                 </tr>`;
         });
 
         html += "</tbody></table>";
         container.innerHTML = html;
       }
+
+      // 显示修改密码模态框
+      function showUpdatePasswordModal(userId, username) {
+        document.getElementById("updatePasswordUserId").value = userId;
+        document.getElementById("updatePasswordUsername").value = username;
+        const modal = new bootstrap.Modal(document.getElementById("updatePasswordModal"));
+        modal.show();
+      }
+
+      // 删除用户
+      async function deleteUser(userId, username) {
+        if (!confirm(`确定要删除用户 "${username}" 吗？此操作不可恢复！`)) {
+          return;
+        }
+
+        try {
+          const response = await adminApi.deleteUser(userId);
+          if (response && response.success) {
+            showSuccess("用户删除成功");
+            loadUsers();
+          } else {
+            alert("删除失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("删除用户失败:", error);
+          alert("删除失败，请稍后重试");
+        }
+      }
+
+      // 添加用户
+      document.getElementById("submitAddUserBtn").addEventListener("click", async () => {
+        const username = document.getElementById("addUsername").value;
+        const password = document.getElementById("addPassword").value;
+        const email = document.getElementById("addEmail").value;
+        const phone = document.getElementById("addPhone").value;
+        const role = document.getElementById("addRole").value;
+
+        if (!username || !password) {
+          alert("请填写用户名和密码");
+          return;
+        }
+
+        try {
+          const userData = {
+            username,
+            password,
+            email,
+            phone,
+            role
+          };
+
+          const response = await adminApi.addUser(userData);
+          if (response && response.success) {
+            showSuccess("用户添加成功");
+            bootstrap.Modal.getInstance(document.getElementById("addUserModal")).hide();
+            document.getElementById("addUserForm").reset();
+            loadUsers();
+          } else {
+            alert("添加失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("添加用户失败:", error);
+          alert("添加失败，请稍后重试");
+        }
+      });
+
+      // 修改密码
+      document.getElementById("submitUpdatePasswordBtn").addEventListener("click", async () => {
+        const userId = document.getElementById("updatePasswordUserId").value;
+        const newPassword = document.getElementById("updatePasswordNewPassword").value;
+
+        if (!newPassword) {
+          alert("请输入新密码");
+          return;
+        }
+
+        try {
+          const response = await adminApi.updateUserPassword(userId, newPassword);
+          if (response && response.success) {
+            showSuccess("密码修改成功");
+            bootstrap.Modal.getInstance(document.getElementById("updatePasswordModal")).hide();
+            document.getElementById("updatePasswordForm").reset();
+          } else {
+            alert("修改失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("修改密码失败:", error);
+          alert("修改失败，请稍后重试");
+        }
+      });
 
       // 页面加载
       (async () => {

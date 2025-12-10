@@ -59,19 +59,20 @@ public class AdminController {
         Map<String, Object> response = new HashMap<>();
         try {
             User user = userService.login(loginDTO, request.getRemoteAddr());
-            if (user != null && "ADMIN".equals(user.getRole())) {
+            if (user != null && ("ADMIN".equals(user.getRole()) || "USER".equals(user.getRole()))) {
                 HttpSession session = request.getSession(true); // 强制创建新Session
                 session.setAttribute("userId", user.getId());
                 session.setAttribute("username", user.getUsername());
-                session.setAttribute("isAdmin", true);
+                session.setAttribute("userRole", user.getRole());
+                session.setAttribute("isAdmin", "ADMIN".equals(user.getRole()));
 
                 // 设置Session超时时间（30分钟）
                 session.setMaxInactiveInterval(30 * 60);
 
-                log.info("管理员登录成功，Session ID: {}, User ID: {}", session.getId(), user.getId());
+                log.info("用户登录成功，Session ID: {}, User ID: {}, Role: {}", session.getId(), user.getId(), user.getRole());
 
-                systemService.logOperation(user.getId(), "LOGIN", "ADMIN",
-                        "管理员登录系统", request.getRemoteAddr());
+                systemService.logOperation(user.getId(), "LOGIN", "AUTH",
+                        ("ADMIN".equals(user.getRole()) ? "管理员" : "操作员") + "登录系统", request.getRemoteAddr());
 
                 response.put("success", true);
                 response.put("message", "登录成功");
@@ -80,7 +81,7 @@ public class AdminController {
                 return ResponseEntity.ok(response);
             } else {
                 response.put("success", false);
-                response.put("message", "用户名或密码错误，或非管理员账户");
+                response.put("message", "用户名或密码错误，或账户无权限");
                 return ResponseEntity.status(401).body(response);
             }
         } catch (Exception e) {
@@ -129,6 +130,10 @@ public class AdminController {
             HttpSession session = request.getSession();
             Long userId = (Long) session.getAttribute("userId");
 
+            // 获取用户信息以确定角色
+            User user = userService.getUserById(userId);
+            String userRole = user != null ? user.getRole() : "ADMIN";
+
             // 获取系统统计数据
             int activeWarningCount = warningService.getActiveWarningCount();
             int publishedWarningCount = warningService.getPublishedComprehensiveWarningCount();
@@ -144,6 +149,7 @@ public class AdminController {
             data.put("abnormalFlightCount", abnormalFlightCount);
             data.put("closedAttractionCount", closedAttractionCount);
             data.put("recentLogs", recentLogs);
+            data.put("userRole", userRole); // 添加用户角色
 
             response.put("success", true);
             response.put("data", data);
@@ -180,6 +186,129 @@ public class AdminController {
             log.error("获取用户列表失败", e);
             response.put("success", false);
             response.put("message", "获取用户列表失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 添加用户接口
+     */
+    @PostMapping("/users/add")
+    @ApiOperation(value = "添加用户", notes = "创建新用户")
+    public ResponseEntity<Map<String, Object>> addUser(
+            @ApiParam(value = "用户信息", required = true)
+            @RequestBody Map<String, Object> userData,
+            HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            User user = new User();
+            user.setUsername((String) userData.get("username"));
+            user.setPassword((String) userData.get("password")); // 密码应该在前端或后端加密
+            user.setEmail((String) userData.get("email"));
+            user.setPhone((String) userData.get("phone"));
+            user.setRole((String) userData.get("role"));
+
+            boolean success = userService.createUser(user, userId);
+            if (success) {
+                response.put("success", true);
+                response.put("message", "用户创建成功");
+            } else {
+                response.put("success", false);
+                response.put("message", "用户创建失败，用户名可能已存在");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("添加用户失败", e);
+            response.put("success", false);
+            response.put("message", "添加用户失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 删除用户接口
+     */
+    @DeleteMapping("/users/delete")
+    @ApiOperation(value = "删除用户", notes = "删除指定用户")
+    public ResponseEntity<Map<String, Object>> deleteUser(
+            @ApiParam(value = "用户ID", required = true)
+            @RequestParam Long id,
+            HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            boolean success = userService.deleteUser(id, userId);
+            if (success) {
+                response.put("success", true);
+                response.put("message", "用户删除成功");
+            } else {
+                response.put("success", false);
+                response.put("message", "用户删除失败");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("删除用户失败", e);
+            response.put("success", false);
+            response.put("message", "删除用户失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 修改用户密码接口
+     */
+    @PostMapping("/users/update-password")
+    @ApiOperation(value = "修改用户密码", notes = "更新指定用户的密码")
+    public ResponseEntity<Map<String, Object>> updateUserPassword(
+            @ApiParam(value = "用户ID", required = true)
+            @RequestParam Long id,
+            @ApiParam(value = "新密码", required = true)
+            @RequestParam String newPassword,
+            HttpServletRequest request) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            boolean success = userService.updatePassword(id, newPassword, userId);
+            if (success) {
+                response.put("success", true);
+                response.put("message", "密码修改成功");
+            } else {
+                response.put("success", false);
+                response.put("message", "密码修改失败");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("修改用户密码失败", e);
+            response.put("success", false);
+            response.put("message", "修改密码失败: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }
@@ -352,6 +481,45 @@ public class AdminController {
             log.error("发布综合预警失败", e);
             response.put("success", false);
             response.put("message", "发布综合预警失败: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    /**
+     * 立即失效综合预警接口
+     */
+    @PostMapping("/warnings/invalidate")
+    @ApiOperation(value = "立即失效综合预警", notes = "将已发布的综合预警立即失效")
+    public ResponseEntity<Map<String, Object>> invalidateComprehensiveWarning(
+            @ApiParam(value = "预警ID", required = true)
+            @RequestParam Long warningId,
+            HttpServletRequest request) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        if (!checkAdminLogin(request)) {
+            response.put("success", false);
+            response.put("message", "未授权访问");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        HttpSession session = request.getSession();
+        Long userId = (Long) session.getAttribute("userId");
+
+        try {
+            boolean success = warningService.unpublishComprehensiveWarning(warningId, userId);
+            if (success) {
+                response.put("success", true);
+                response.put("message", "预警已失效");
+            } else {
+                response.put("success", false);
+                response.put("message", "失效预警失败");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("失效综合预警失败", e);
+            response.put("success", false);
+            response.put("message", "失效预警失败: " + e.getMessage());
             return ResponseEntity.status(500).body(response);
         }
     }
@@ -757,7 +925,7 @@ public class AdminController {
     }
 
     /**
-     * 检查管理员登录状态
+     * 检查管理员登录状态（包括管理员和操作员）
      */
     private boolean checkAdminLogin(HttpServletRequest request) {
         HttpSession session = request.getSession(false); // 不创建新Session，只获取现有Session
@@ -765,9 +933,10 @@ public class AdminController {
             log.warn("Session不存在，用户未登录");
             return false;
         }
-        Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
+        String userRole = (String) session.getAttribute("userRole");
         Long userId = (Long) session.getAttribute("userId");
-        log.debug("检查登录状态 - Session ID: {}, User ID: {}, IsAdmin: {}", session.getId(), userId, isAdmin);
-        return isAdmin != null && isAdmin;
+        boolean isAuthorized = userRole != null && ("ADMIN".equals(userRole) || "USER".equals(userRole));
+        log.debug("检查登录状态 - Session ID: {}, User ID: {}, Role: {}, Authorized: {}", session.getId(), userId, userRole, isAuthorized);
+        return isAuthorized;
     }
 }

@@ -1,5 +1,5 @@
 // API 基础配置
-const API_BASE_URL = 'http://localhost:8080/weather';
+const API_BASE_URL = 'http://localhost:18080/weather';
 
 // API 请求封装
 class ApiClient {
@@ -224,6 +224,19 @@ const adminApi = {
     getUsers: () => {
         return api.get('/api/admin/users');
     },
+    addUser: (userData) => {
+        return api.post('/api/admin/users/add', userData);
+    },
+    deleteUser: (id) => {
+        const queryString = new URLSearchParams({ id: id }).toString();
+        return api.request(`/api/admin/users/delete?${queryString}`, {
+            method: 'DELETE'
+        });
+    },
+    updateUserPassword: (id, newPassword) => {
+        const queryString = new URLSearchParams({ id: id, newPassword: newPassword }).toString();
+        return api.post(`/api/admin/users/update-password?${queryString}`, {});
+    },
 
     // 天气数据管理
     getWeatherData: () => {
@@ -246,6 +259,10 @@ const adminApi = {
     publishWarning: (warningId) => {
         const queryString = new URLSearchParams({ warningId: warningId }).toString();
         return api.post(`/api/admin/warnings/publish?${queryString}`, {});
+    },
+    invalidateWarning: (warningId) => {
+        const queryString = new URLSearchParams({ warningId: warningId }).toString();
+        return api.post(`/api/admin/warnings/invalidate?${queryString}`, {});
     },
 
     // 交通管理

@@ -6,7 +6,11 @@ class AdminSidebar {
     this.containerId = containerId;
     this.onNavigate = onNavigate;
     this.currentPage = "dashboard";
-    this.init();
+    this.userRole = null; // 用户角色
+  }
+
+  setUserRole(role) {
+    this.userRole = role;
   }
 
   init() {
@@ -16,54 +20,75 @@ class AdminSidebar {
       return;
     }
 
-    container.innerHTML = this.render();
+    container.innerHTML = this.render(this.userRole);
     this.attachEvents();
   }
 
-  render() {
-    const menuItems = [
+  render(userRole = null) {
+    // 所有菜单项
+    const allMenuItems = [
       {
         id: "dashboard",
         icon: "bi-speedometer2",
         label: "仪表盘",
         page: "dashboard.html",
+        roles: ["ADMIN"] // 仅管理员可见
       },
-      { id: "users", icon: "bi-people", label: "用户管理", page: "users.html" },
+      {
+        id: "users",
+        icon: "bi-people",
+        label: "用户管理",
+        page: "users.html",
+        roles: ["ADMIN"] // 仅管理员可见
+      },
       {
         id: "weather",
         icon: "bi-cloud-sun",
         label: "天气数据",
         page: "weather.html",
+        roles: ["ADMIN", "USER"] // 管理员和操作员都可见
       },
       {
         id: "warnings",
         icon: "bi-exclamation-triangle",
         label: "预警管理",
         page: "warnings.html",
+        roles: ["ADMIN", "USER"] // 管理员和操作员都可见
       },
       {
         id: "traffic",
         icon: "bi-airplane",
         label: "交通管理",
         page: "traffic.html",
+        roles: ["ADMIN", "USER"] // 管理员和操作员都可见
       },
       {
         id: "attractions",
         icon: "bi-geo-alt",
         label: "景点管理",
         page: "attractions.html",
+        roles: ["ADMIN", "USER"] // 管理员和操作员都可见
       },
       {
         id: "logs",
         icon: "bi-journal-text",
         label: "系统日志",
         page: "logs.html",
+        roles: ["ADMIN"] // 仅管理员可见
       },
     ];
 
+    // 根据用户角色过滤菜单项
+    let menuItems = allMenuItems;
+    if (userRole) {
+      menuItems = allMenuItems.filter(item =>
+        item.roles.includes(userRole)
+      );
+    }
+
     let html = `
       <div class="text-center mb-4">
-        <h4>管理后台</h4>
+        <h4>${userRole === "USER" ? "操作后台" : "管理后台"}</h4>
       </div>
       <nav class="nav flex-column">
     `;

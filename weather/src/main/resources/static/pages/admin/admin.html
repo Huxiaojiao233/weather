@@ -77,12 +77,31 @@
       (async () => {
         const isAuth = await checkAuth();
         if (isAuth) {
-          // 初始化侧边栏
+          // 获取用户角色
+          let userRole = "ADMIN"; // 默认管理员
+          try {
+            const dashboardResponse = await adminApi.getDashboard();
+            if (
+              dashboardResponse &&
+              dashboardResponse.data &&
+              dashboardResponse.data.userRole
+            ) {
+              userRole = dashboardResponse.data.userRole;
+            }
+          } catch (e) {
+            console.warn("获取用户角色失败，使用默认值", e);
+          }
+
+          // 初始化侧边栏，传入用户角色
           sidebar = new AdminSidebar("sidebarContainer", navigateToPage);
+          sidebar.setUserRole(userRole); // 设置用户角色
+          sidebar.init(); // 重新初始化以应用角色过滤
 
           // 从URL参数获取初始页面
           const urlParams = new URLSearchParams(window.location.search);
-          const page = urlParams.get("page") || "dashboard";
+          const page =
+            urlParams.get("page") ||
+            (userRole === "USER" ? "weather" : "dashboard");
           const pageMap = {
             dashboard: "dashboard.html",
             users: "users.html",

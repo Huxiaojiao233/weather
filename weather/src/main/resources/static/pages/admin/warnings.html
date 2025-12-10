@@ -25,13 +25,6 @@
         <h2><i class="bi bi-exclamation-triangle"></i> 预警管理</h2>
         <div>
           <button
-            class="btn btn-success me-2"
-            id="syncWeatherBtn"
-            onclick="syncWeatherData()"
-          >
-            <i class="bi bi-arrow-clockwise"></i> 同步天气数据
-          </button>
-          <button
             class="btn btn-warning me-2"
             data-bs-toggle="modal"
             data-bs-target="#simulateWarningModal"
@@ -203,7 +196,11 @@
             >
               取消
             </button>
-            <button type="button" class="btn btn-warning" id="submitSimulateBtn">
+            <button
+              type="button"
+              class="btn btn-warning"
+              id="submitSimulateBtn"
+            >
               发布模拟预警
             </button>
           </div>
@@ -427,7 +424,7 @@
 
         let html = '<table class="table table-hover">';
         html +=
-          "<thead><tr><th>标题</th><th>级别</th><th>发布时间</th><th>受影响地区</th></tr></thead>";
+          "<thead><tr><th>标题</th><th>级别</th><th>发布时间</th><th>受影响地区</th><th>操作</th></tr></thead>";
         html += "<tbody>";
 
         warnings.forEach((warning) => {
@@ -439,11 +436,38 @@
           }</span></td>
                     <td>${formatDate(warning.publishTime)}</td>
                     <td>${warning.affectedLocations || "-"}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="invalidateWarning(${
+                          warning.id
+                        })">
+                            <i class="bi bi-x-circle"></i> 立即失效
+                        </button>
+                    </td>
                 </tr>`;
         });
 
         html += "</tbody></table>";
         container.innerHTML = html;
+      }
+
+      // 立即失效预警
+      async function invalidateWarning(warningId) {
+        if (!confirm("确定要让此预警立即失效吗？")) {
+          return;
+        }
+
+        try {
+          const response = await adminApi.invalidateWarning(warningId);
+          if (response && response.success) {
+            showSuccess("预警已失效");
+            loadWarnings();
+          } else {
+            alert("失效失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("失效预警失败:", error);
+          alert("失效失败，请稍后重试");
+        }
       }
 
       // 发布预警
@@ -516,43 +540,35 @@
           }
         });
 
-      // 同步天气数据
-      async function syncWeatherData() {
-        const btn = document.getElementById("syncWeatherBtn");
-        const originalText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
-
-        try {
-          const response = await adminApi.syncWeatherData();
-          if (response && response.success) {
-            showSuccess("同步成功");
-            loadWarnings();
-          } else {
-            alert("同步失败：" + (response.message || "未知错误"));
-          }
-        } catch (error) {
-          console.error("同步天气数据失败:", error);
-          alert("同步失败，请稍后重试");
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = originalText;
-        }
-      }
-
       // 提交模拟预警
       document
         .getElementById("submitSimulateBtn")
         .addEventListener("click", async () => {
-          const locationCode = document.getElementById("simulateLocationCode").value;
-          const warningType = document.getElementById("simulateWarningType").value;
-          const warningLevel = document.getElementById("simulateWarningLevel").value;
+          const locationCode = document.getElementById(
+            "simulateLocationCode"
+          ).value;
+          const warningType = document.getElementById(
+            "simulateWarningType"
+          ).value;
+          const warningLevel = document.getElementById(
+            "simulateWarningLevel"
+          ).value;
           const title = document.getElementById("simulateTitle").value;
           const content = document.getElementById("simulateContent").value;
-          const effectiveTime = document.getElementById("simulateEffectiveTime").value;
-          const expireTime = document.getElementById("simulateExpireTime").value;
+          const effectiveTime = document.getElementById(
+            "simulateEffectiveTime"
+          ).value;
+          const expireTime =
+            document.getElementById("simulateExpireTime").value;
 
-          if (!locationCode || !warningType || !title || !content || !effectiveTime || !expireTime) {
+          if (
+            !locationCode ||
+            !warningType ||
+            !title ||
+            !content ||
+            !effectiveTime ||
+            !expireTime
+          ) {
             alert("请填写所有必填项");
             return;
           }
@@ -565,7 +581,7 @@
               title,
               content,
               effectiveTime,
-              expireTime
+              expireTime,
             };
 
             const response = await adminApi.simulateWeatherWarning(warningData);

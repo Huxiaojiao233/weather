@@ -25,6 +25,7 @@
         <h2><i class="bi bi-airplane"></i> 交通管理</h2>
         <button
           class="btn btn-primary"
+          onclick="resetTrafficForm()"
           data-bs-toggle="modal"
           data-bs-target="#addTrafficModal"
         >
@@ -79,7 +80,7 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">添加交通信息</h5>
+            <h5 class="modal-title" id="trafficModalTitle">添加交通信息</h5>
             <button
               type="button"
               class="btn-close"
@@ -185,6 +186,15 @@
       let flights = [];
       let trains = [];
       let editingId = null;
+
+      // 重置表单
+      function resetTrafficForm() {
+        editingId = null;
+        document.getElementById("trafficId").value = "";
+        document.getElementById("trafficModalTitle").textContent =
+          "添加交通信息";
+        document.getElementById("trafficForm").reset();
+      }
 
       // 检查登录状态
       async function checkAuth() {
@@ -324,37 +334,85 @@
       function editTraffic(id) {
         const allTraffic = [...flights, ...trains];
         const traffic = allTraffic.find((t) => t.id === id);
-        if (!traffic) return;
+        if (!traffic) {
+          alert("未找到该交通信息");
+          return;
+        }
 
         editingId = id;
+        const modalElement = document.getElementById("addTrafficModal");
+
+        // 填充表单数据
         document.getElementById("trafficId").value = id;
-        document.getElementById("trafficType").value = traffic.type;
-        document.getElementById("trafficNumber").value = traffic.number;
+        document.getElementById("trafficModalTitle").textContent =
+          "编辑交通信息";
+        document.getElementById("trafficType").value = traffic.type || "";
+        document.getElementById("trafficNumber").value = traffic.number || "";
         document.getElementById("departureCity").value =
           traffic.departureCity || "";
         document.getElementById("arrivalCity").value =
           traffic.arrivalCity || "";
 
+        // 处理计划时间
         if (traffic.scheduledTime) {
-          const scheduled = new Date(traffic.scheduledTime);
-          document.getElementById("scheduledTime").value = scheduled
-            .toISOString()
-            .slice(0, 16);
-        }
-        if (traffic.estimatedTime) {
-          const estimated = new Date(traffic.estimatedTime);
-          document.getElementById("estimatedTime").value = estimated
-            .toISOString()
-            .slice(0, 16);
+          try {
+            const scheduled = new Date(traffic.scheduledTime);
+            if (!isNaN(scheduled.getTime())) {
+              // 转换为本地时间格式 YYYY-MM-DDTHH:mm
+              const year = scheduled.getFullYear();
+              const month = String(scheduled.getMonth() + 1).padStart(2, "0");
+              const day = String(scheduled.getDate()).padStart(2, "0");
+              const hours = String(scheduled.getHours()).padStart(2, "0");
+              const minutes = String(scheduled.getMinutes()).padStart(2, "0");
+              document.getElementById(
+                "scheduledTime"
+              ).value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            } else {
+              document.getElementById("scheduledTime").value = "";
+            }
+          } catch (e) {
+            console.error("解析计划时间失败:", e);
+            document.getElementById("scheduledTime").value = "";
+          }
+        } else {
+          document.getElementById("scheduledTime").value = "";
         }
 
-        document.getElementById("trafficStatus").value = traffic.status;
+        // 处理预计时间
+        if (traffic.estimatedTime) {
+          try {
+            const estimated = new Date(traffic.estimatedTime);
+            if (!isNaN(estimated.getTime())) {
+              // 转换为本地时间格式 YYYY-MM-DDTHH:mm
+              const year = estimated.getFullYear();
+              const month = String(estimated.getMonth() + 1).padStart(2, "0");
+              const day = String(estimated.getDate()).padStart(2, "0");
+              const hours = String(estimated.getHours()).padStart(2, "0");
+              const minutes = String(estimated.getMinutes()).padStart(2, "0");
+              document.getElementById(
+                "estimatedTime"
+              ).value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            } else {
+              document.getElementById("estimatedTime").value = "";
+            }
+          } catch (e) {
+            console.error("解析预计时间失败:", e);
+            document.getElementById("estimatedTime").value = "";
+          }
+        } else {
+          document.getElementById("estimatedTime").value = "";
+        }
+
+        document.getElementById("trafficStatus").value =
+          traffic.status || "NORMAL";
         document.getElementById("delayReason").value =
           traffic.delayReason || "";
 
-        const modal = new bootstrap.Modal(
-          document.getElementById("addTrafficModal")
-        );
+        // 获取或创建Modal实例并显示
+        let modal = bootstrap.Modal.getInstance(modalElement);
+        if (!modal) {
+          modal = new bootstrap.Modal(modalElement);
+        }
         modal.show();
       }
 
@@ -411,6 +469,8 @@
                 document.getElementById("addTrafficModal")
               ).hide();
               document.getElementById("trafficForm").reset();
+              document.getElementById("trafficModalTitle").textContent =
+                "添加交通信息";
               editingId = null;
               loadTraffic();
             } else {

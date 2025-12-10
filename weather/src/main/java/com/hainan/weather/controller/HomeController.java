@@ -48,8 +48,11 @@ public class HomeController {
     public ResponseEntity<Map<String, Object>> index() {
         Map<String, Object> response = new HashMap<>();
         try {
-            // 获取三亚最新天气
+            // 获取四个城市的最新天气
             WeatherData sanyaWeather = weatherService.getLatestWeather("SANYA");
+            WeatherData haikouWeather = weatherService.getLatestWeather("HAIKOU");
+            WeatherData dongfangWeather = weatherService.getLatestWeather("DONGFANG");
+            WeatherData qionghaiWeather = weatherService.getLatestWeather("QIONGHAI");
 
             // 获取活跃的天气预警
             List<WeatherWarning> activeWarnings = warningService.getActiveWeatherWarnings();
@@ -65,6 +68,9 @@ public class HomeController {
 
             Map<String, Object> data = new HashMap<>();
             data.put("sanyaWeather", sanyaWeather);
+            data.put("haikouWeather", haikouWeather);
+            data.put("dongfangWeather", dongfangWeather);
+            data.put("qionghaiWeather", qionghaiWeather);
             data.put("activeWarnings", activeWarnings);
             data.put("publishedWarnings", publishedWarnings);
             data.put("abnormalTraffic", abnormalTraffic);

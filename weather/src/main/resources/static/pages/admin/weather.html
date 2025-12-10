@@ -23,6 +23,13 @@
     <div class="content-page">
           <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="bi bi-cloud-sun"></i> 天气数据管理</h2>
+            <button
+                    class="btn btn-success me-2"
+                    id="syncWeatherBtn"
+                    onclick="syncWeatherData()"
+            >
+              <i class="bi bi-arrow-clockwise"></i> 同步天气数据
+            </button>
           </div>
 
           <div class="card">
@@ -67,6 +74,30 @@
             window.location.href = "login.html";
           }
           return false;
+        }
+      }
+
+      // 同步天气数据
+      async function syncWeatherData() {
+        const btn = document.getElementById("syncWeatherBtn");
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
+
+        try {
+          const response = await adminApi.syncWeatherData();
+          if (response && response.success) {
+            showSuccess("同步成功");
+            loadWarnings();
+          } else {
+            alert("同步失败：" + (response.message || "未知错误"));
+          }
+        } catch (error) {
+          console.error("同步天气数据失败:", error);
+          alert("同步失败，请稍后重试");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
         }
       }
 
